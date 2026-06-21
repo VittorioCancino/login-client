@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-ce-night: #080b12;
+  --color-ce-panel: rgba(13, 18, 30, 0.84);
+  --color-ce-blue: #38bdf8;
+  --color-ce-yellow: #facc15;
+  --color-ce-text: #f7f8fb;
+  --color-ce-muted: #9ba8bd;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+button,
+input {
+  font: inherit;
+}
