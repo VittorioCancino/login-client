@@ -1,0 +1,45 @@
+# Source of truth for Hydra client registration and local env generation. This
+# service is Hydra's login/consent UI and uses a machine client to call the
+# protected resource-server credential verification endpoint.
+service:
+  name: login-client
+  local_url: http://localhost:3002
+
+hydra_client:
+  id: login-client
+  name: Login Client
+  type: confidential
+  grant_types:
+    - client_credentials
+  response_types: []
+  redirect_uris: []
+  post_logout_redirect_uris: []
+  token_endpoint_auth_method: client_secret_basic
+  scopes:
+    - internal.auth.verify-credentials
+  audiences:
+    - resource-server
+
+runtime_env:
+  file: .env.local
+  values:
+    PORT: "3002"
+    HYDRA_ADMIN_URL: http://127.0.0.1:4445
+    HYDRA_PUBLIC_URL: http://127.0.0.1:4444
+    LOGIN_SERVER_CLIENT_ID:
+      from: hydra_client.id
+    RESOURCE_SERVER_URL: http://127.0.0.1:3003
+    RESOURCE_SERVER_LOGIN_PATH: /auth/login
+    RESOURCE_SERVER_IDENTIFIER_FIELD: email
+    RESOURCE_SERVER_PASSWORD_FIELD: password
+    RESOURCE_SERVER_AUDIENCE:
+      from: hydra_client.audiences
+      join: " "
+    RESOURCE_SERVER_LOGIN_SCOPE:
+      from: hydra_client.scopes
+      join: " "
+    LOGIN_REMEMBER_FOR_SECONDS: "3600"
+    CONSENT_REMEMBER_FOR_SECONDS: "3600"
+  generated:
+    LOGIN_SERVER_CLIENT_SECRET:
+      from: hydra_registration

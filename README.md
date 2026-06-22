@@ -45,10 +45,20 @@ scope: internal.auth.verify-credentials
 
 ## Setup
 
+`idp-client.yaml` is the committed source of truth for this service's Hydra
+machine client registration and local runtime env contract. It is safe to commit
+because it describes required values but does not contain generated credentials
+or real secrets.
+
+The platform orchestrator generates the ignored `.env.local` file from
+`idp-client.yaml` after registering this service in Hydra. For standalone local
+development, run `./init.sh` once. If no env file exists, it creates `.env.local`
+from `idp-client.yaml` and exits so you can fill `LOGIN_SERVER_CLIENT_SECRET`.
+
+Then rerun:
+
 ```bash
-cp .env.example .env
-bun install
-bun run dev
+./init.sh
 ```
 
 Default local URL: `http://localhost:3002`.
