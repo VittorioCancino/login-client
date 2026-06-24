@@ -2,7 +2,13 @@
 
 import { redirect } from "next/navigation";
 
-import { acceptLoginRequest } from "@/lib/hydra/login";
+import { acceptLoginRequest, getLoginRequest } from "@/lib/hydra/login";
+import {
+  getLoginAccountAcr,
+  getLoginAccountType,
+  getMaintainerServiceClientId,
+  InvalidLoginAccountTypeError,
+} from "@/lib/login/account-type";
 import {
   authenticateResourceUser,
   InvalidCredentialsError,
@@ -47,8 +53,20 @@ export async function submitLogin(
   let redirectTo: string;
 
   try {
-    const user = await authenticateResourceUser({ identifier, password });
+    const loginRequest = await getLoginRequest(loginChallenge);
+    const accountType = getLoginAccountType(loginRequest);
+    const serviceClientId = getMaintainerServiceClientId(
+      loginRequest,
+      accountType,
+    );
+    const user = await authenticateResourceUser({
+      accountType,
+      identifier,
+      password,
+      serviceClientId,
+    });
     const accepted = await acceptLoginRequest(loginChallenge, {
+      acr: getLoginAccountAcr(accountType),
       context: user.context,
       remember: true,
       rememberForSeconds: getLoginRememberForSeconds(),
@@ -59,6 +77,10 @@ export async function submitLogin(
   } catch (error) {
     if (error instanceof InvalidCredentialsError) {
       return { error: "Invalid credentials.", identifier };
+    }
+
+    if (error instanceof InvalidLoginAccountTypeError) {
+      return { error: "Unsupported login account type.", identifier };
     }
 
     if (error instanceof ResourceServerError && error.status === 400) {

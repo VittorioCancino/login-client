@@ -17,6 +17,7 @@ hydra_client:
   token_endpoint_auth_method: client_secret_basic
   scopes:
     - internal.auth.verify-credentials
+    - internal.auth.verify-maintainer-credentials
   audiences:
     - resource-server
 
@@ -30,14 +31,14 @@ runtime_env:
       from: hydra_client.id
     RESOURCE_SERVER_URL: http://127.0.0.1:3003
     RESOURCE_SERVER_LOGIN_PATH: /auth/login
+    RESOURCE_SERVER_MAINTAINER_LOGIN_PATH: /auth/maintainer-login
     RESOURCE_SERVER_IDENTIFIER_FIELD: email
     RESOURCE_SERVER_PASSWORD_FIELD: password
     RESOURCE_SERVER_AUDIENCE:
       from: hydra_client.audiences
       join: " "
-    RESOURCE_SERVER_LOGIN_SCOPE:
-      from: hydra_client.scopes
-      join: " "
+    RESOURCE_SERVER_LOGIN_SCOPE: internal.auth.verify-credentials
+    RESOURCE_SERVER_MAINTAINER_LOGIN_SCOPE: internal.auth.verify-maintainer-credentials
     LOGIN_REMEMBER_FOR_SECONDS: "3600"
     CONSENT_REMEMBER_FOR_SECONDS: "3600"
   generated:

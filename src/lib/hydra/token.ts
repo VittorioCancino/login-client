@@ -50,9 +50,8 @@ function readHydraTokenError(
     : `Hydra token request failed with status ${status}.`;
 }
 
-export async function getResourceServerAccessToken(): Promise<string> {
+export async function getResourceServerAccessToken(scope: string): Promise<string> {
   const audience = getRequiredEnv("RESOURCE_SERVER_AUDIENCE");
-  const scope = getRequiredEnv("RESOURCE_SERVER_LOGIN_SCOPE");
   const body = new URLSearchParams({
     audience,
     grant_type: "client_credentials",

@@ -7,10 +7,13 @@ import {
   stripTrailingSlash,
 } from "@/lib/env";
 import { getResourceServerAccessToken } from "@/lib/hydra/token";
+import type { LoginAccountType } from "@/lib/login/account-type";
 
 type ResourceCredentials = {
+  accountType: LoginAccountType;
   identifier: string;
   password: string;
+  serviceClientId?: string;
 };
 
 export type AuthenticatedResourceUser = {
@@ -21,6 +24,7 @@ export type AuthenticatedResourceUser = {
 type UnknownRecord = Record<string, unknown>;
 
 const DEFAULT_LOGIN_PATH = "/auth/login";
+const DEFAULT_MAINTAINER_LOGIN_PATH = "/auth/maintainer-login";
 const DEFAULT_IDENTIFIER_FIELD = "email";
 const DEFAULT_PASSWORD_FIELD = "password";
 const DEFAULT_SUBJECT_FIELDS = ["subject", "sub", "id", "user_id", "userId"];
@@ -46,7 +50,20 @@ function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function getResourceLoginUrl(): string {
+function getResourceLoginUrl(accountType: LoginAccountType): string {
+  if (accountType === "maintainer") {
+    const explicitUrl = getOptionalEnv("RESOURCE_SERVER_MAINTAINER_LOGIN_URL");
+
+    if (explicitUrl) return explicitUrl;
+
+    const baseUrl = stripTrailingSlash(getRequiredEnv("RESOURCE_SERVER_URL"));
+    const path =
+      getOptionalEnv("RESOURCE_SERVER_MAINTAINER_LOGIN_PATH") ??
+      DEFAULT_MAINTAINER_LOGIN_PATH;
+
+    return joinUrl(baseUrl, path);
+  }
+
   const explicitUrl = getOptionalEnv("RESOURCE_SERVER_LOGIN_URL");
 
   if (explicitUrl) return explicitUrl;
@@ -57,7 +74,30 @@ function getResourceLoginUrl(): string {
   return joinUrl(baseUrl, path);
 }
 
+function getResourceLoginScope(accountType: LoginAccountType): string {
+  return getRequiredEnv(
+    accountType === "maintainer"
+      ? "RESOURCE_SERVER_MAINTAINER_LOGIN_SCOPE"
+      : "RESOURCE_SERVER_LOGIN_SCOPE",
+  );
+}
+
 function getCredentialBody(credentials: ResourceCredentials): Record<string, string> {
+  if (credentials.accountType === "maintainer") {
+    if (!credentials.serviceClientId) {
+      throw new ResourceServerError(
+        undefined,
+        "Maintainer login requires a service client id.",
+      );
+    }
+
+    return {
+      email: credentials.identifier,
+      password: credentials.password,
+      serviceClientId: credentials.serviceClientId,
+    };
+  }
+
   const identifierField =
     getOptionalEnv("RESOURCE_SERVER_IDENTIFIER_FIELD") ?? DEFAULT_IDENTIFIER_FIELD;
   const passwordField =
@@ -100,8 +140,11 @@ function getSubjectFields(): string[] {
     : DEFAULT_SUBJECT_FIELDS;
 }
 
-function getSafeContext(records: UnknownRecord[]): Record<string, unknown> {
-  const context: Record<string, unknown> = { authenticated_by: "resource-server" };
+function getSafeContext(
+  records: UnknownRecord[],
+  accountType: LoginAccountType,
+): Record<string, unknown> {
+  const context: Record<string, unknown> = {};
   const email = findString(records, ["email"]);
   const name = findString(records, ["name", "full_name", "fullName"]);
 
@@ -112,7 +155,13 @@ function getSafeContext(records: UnknownRecord[]): Record<string, unknown> {
     for (const key of ["claims", "traits", "context"]) {
       if (isRecord(record[key])) Object.assign(context, record[key]);
     }
+
+    if (isRecord(record.service)) context.service = record.service;
   }
+
+  context.account_type = accountType;
+  context.accountType = accountType;
+  context.authenticated_by = "resource-server";
 
   return context;
 }
@@ -138,8 +187,10 @@ function assertAuthenticated(payload: UnknownRecord): void {
 export async function authenticateResourceUser(
   credentials: ResourceCredentials,
 ): Promise<AuthenticatedResourceUser> {
-  const token = await getResourceServerAccessToken();
-  const response = await fetch(getResourceLoginUrl(), {
+  const token = await getResourceServerAccessToken(
+    getResourceLoginScope(credentials.accountType),
+  );
+  const response = await fetch(getResourceLoginUrl(credentials.accountType), {
     body: JSON.stringify(getCredentialBody(credentials)),
     cache: "no-store",
     headers: {
@@ -179,7 +230,7 @@ export async function authenticateResourceUser(
   }
 
   return {
-    context: getSafeContext(records),
+    context: getSafeContext(records, credentials.accountType),
     subject,
   };
 }

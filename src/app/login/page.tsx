@@ -2,6 +2,13 @@ import { redirect } from "next/navigation";
 
 import { acceptLoginRequest, getLoginRequest } from "@/lib/hydra/login";
 import type { HydraLoginRequest } from "@/lib/hydra/types";
+import {
+  getLoginAccountAcr,
+  getLoginAccountType,
+  getMaintainerServiceClientId,
+  InvalidLoginAccountTypeError,
+  type LoginAccountType,
+} from "@/lib/login/account-type";
 import { getLoginRememberForSeconds } from "@/lib/settings";
 
 import { LoginForm } from "./LoginForm";
@@ -43,10 +50,24 @@ function getLoginHint(loginRequest: HydraLoginRequest): string | undefined {
   return typeof hint === "string" && hint.trim() ? hint : undefined;
 }
 
+function getLoginTitle(accountType: LoginAccountType): string {
+  return accountType === "maintainer"
+    ? "Sign in with your maintainer account"
+    : "Sign in with your CE-Lab account";
+}
+
+function getLoginDescription(accountType: LoginAccountType): string {
+  return accountType === "maintainer"
+    ? "Use your maintainer credentials to continue to this application."
+    : "Continue only if you recognize the requesting application.";
+}
+
 function LoginCard({
+  accountType = "user",
   children,
   clientName,
 }: {
+  accountType?: LoginAccountType;
   children: React.ReactNode;
   clientName?: string;
 }) {
@@ -67,10 +88,10 @@ function LoginCard({
           </div>
           <p className={eyebrowClassName}>Computer Engineering LAB</p>
           <h1 className={titleClassName} id="login-title">
-            Sign in with your CE-Lab account
+            {getLoginTitle(accountType)}
           </h1>
           <p className="mt-3 text-sm leading-6 text-ce-muted">
-            Continue only if you recognize the requesting application.
+            {getLoginDescription(accountType)}
           </p>
           <div
             className="mt-5 rounded-2xl border border-ce-yellow/30 bg-ce-yellow/10 px-4 py-3"
@@ -118,19 +139,29 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   let loginRequest: HydraLoginRequest;
+  let accountType: LoginAccountType;
 
   try {
     loginRequest = await getLoginRequest(loginChallenge);
+    accountType = getLoginAccountType(loginRequest);
+    getMaintainerServiceClientId(loginRequest, accountType);
   } catch (error) {
+    if (error instanceof InvalidLoginAccountTypeError) {
+      console.error("Unsupported Hydra login account type", error);
+      return <LoginError message="Unsupported login account type." />;
+    }
+
     console.error("Unable to fetch Hydra login request", error);
     return <LoginError message="Unable to read the Hydra login challenge." />;
   }
 
-  if (loginRequest.skip && loginRequest.subject) {
+  if (accountType === "user" && loginRequest.skip && loginRequest.subject) {
     let redirectTo: string;
 
     try {
       const accepted = await acceptLoginRequest(loginChallenge, {
+        acr: getLoginAccountAcr(accountType),
+        context: { account_type: accountType },
         remember: true,
         rememberForSeconds: getLoginRememberForSeconds(),
         subject: loginRequest.subject,
@@ -147,7 +178,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const clientName = getClientName(loginRequest);
 
   return (
-    <LoginCard clientName={clientName}>
+    <LoginCard accountType={accountType} clientName={clientName}>
       <LoginForm
         loginChallenge={loginChallenge}
         loginHint={getLoginHint(loginRequest)}

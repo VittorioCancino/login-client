@@ -10,6 +10,7 @@ import type {
 const DEFAULT_HYDRA_ADMIN_URL = "http://127.0.0.1:4445";
 
 type AcceptLoginInput = {
+  acr?: string;
   context?: Record<string, unknown>;
   remember?: boolean;
   rememberForSeconds?: number;
@@ -89,6 +90,7 @@ export async function acceptLoginRequest(
     `/admin/oauth2/auth/requests/login/accept?${params.toString()}`,
     {
       body: JSON.stringify({
+        acr: input.acr,
         context: input.context ?? {},
         remember: input.remember ?? true,
         remember_for: input.rememberForSeconds,
